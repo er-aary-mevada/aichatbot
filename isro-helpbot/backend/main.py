@@ -72,28 +72,18 @@ def scrape_mosdac():
 async def get_ai_response(question: str) -> str:
     """Generate AI response based on the question and scraped content"""
     try:
-        # Prepare input for the model
-        inputs = tokenizer(
-            question,
-            str(content_database),
-            return_tensors="pt",
-            max_length=512,
-            truncation=True
-        )
-
-        # Get model output
-        outputs = model(**inputs)
+        # Simple keyword-based response for now
+        question_lower = question.lower()
+        content = content_database.get("mosdac", "")
         
-        # Extract answer
-        answer_start = outputs.start_logits.argmax()
-        answer_end = outputs.end_logits.argmax()
-        
-        answer = tokenizer.decode(inputs["input_ids"][0][answer_start:answer_end+1])
-        
-        if not answer or answer.strip() == "":
-            return "I apologize, but I couldn't find specific information about that. Please try rephrasing your question or ask something else about MOSDAC's services."
-        
-        return answer
+        if "satellite" in question_lower or "data" in question_lower:
+            return "MOSDAC (MOSDAC Ocean Satellite Data Archival Centre) provides free access to satellite data and services. You can find various satellite datasets including ocean color, sea surface temperature, and other oceanographic parameters."
+        elif "download" in question_lower or "access" in question_lower:
+            return "You can access and download satellite data from the MOSDAC portal at www.mosdac.gov.in. Registration may be required for certain datasets."
+        elif "help" in question_lower or "support" in question_lower:
+            return "For support and assistance, you can contact the MOSDAC team through the portal's contact section or refer to the documentation and FAQs available on the website."
+        else:
+            return "I'm here to help you with MOSDAC satellite data and services. You can ask me about satellite data, downloads, or general information about MOSDAC services."
 
     except Exception as e:
         return f"I apologize, but I encountered an error. Please try asking your question differently."
