@@ -170,6 +170,10 @@ export default function ChatWindow() {
   }, [messages]);
 
   useEffect(() => {
+    if (!isClient || !session.id) return;
+
+    let reconnectTimeout: NodeJS.Timeout;
+
     function connect() {
       try {
         setIsConnecting(true);
@@ -186,16 +190,19 @@ export default function ChatWindow() {
 
         ws.onclose = () => {
           console.log('WebSocket connection closed');
-          if (connectionAttempts < MAX_RECONNECT_ATTEMPTS) {
-            setError('Connection lost. Attempting to reconnect...');
-            setConnectionAttempts(prev => prev + 1);
-            setTimeout(connect, 3000);
-          } else {
-            setOfflineMode(true);
-            setError('Backend server is not available. Running in offline mode with enhanced AI responses.');
-            setIsConnecting(false);
-            console.log('Switched to offline mode - all features remain functional');
-          }
+          setConnectionAttempts(prev => {
+            const newAttempts = prev + 1;
+            if (newAttempts < MAX_RECONNECT_ATTEMPTS) {
+              setError('Connection lost. Attempting to reconnect...');
+              reconnectTimeout = setTimeout(connect, 3000);
+            } else {
+              setOfflineMode(true);
+              setError('Backend server is not available. Running in offline mode with enhanced AI responses.');
+              setIsConnecting(false);
+              console.log('Switched to offline mode - all features remain functional');
+            }
+            return newAttempts;
+          });
         };
 
         ws.onmessage = (event) => {
@@ -238,17 +245,19 @@ export default function ChatWindow() {
         ws.onerror = (error) => {
           console.log('WebSocket connection attempt failed (expected in offline mode):', error);
           setIsConnecting(false);
-          setConnectionAttempts(prev => prev + 1);
-          
-          if (connectionAttempts < MAX_RECONNECT_ATTEMPTS) {
-            const delay = Math.min(1000 * Math.pow(2, connectionAttempts), 5000);
-            setError(`Connecting to backend... (Attempt ${connectionAttempts + 1}/${MAX_RECONNECT_ATTEMPTS})`);
-            setTimeout(connect, delay);
-          } else {
-            setOfflineMode(true);
-            setError('Backend server is not available. Running in offline mode with enhanced AI responses.');
-            console.log('Switched to offline mode - all features remain functional');
-          }
+          setConnectionAttempts(prev => {
+            const newAttempts = prev + 1;
+            if (newAttempts < MAX_RECONNECT_ATTEMPTS) {
+              const delay = Math.min(1000 * Math.pow(2, newAttempts - 1), 5000);
+              setError(`Connecting to backend... (Attempt ${newAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
+              reconnectTimeout = setTimeout(connect, delay);
+            } else {
+              setOfflineMode(true);
+              setError('Backend server is not available. Running in offline mode with enhanced AI responses.');
+              console.log('Switched to offline mode - all features remain functional');
+            }
+            return newAttempts;
+          });
         };
 
         wsRef.current = ws;
@@ -260,12 +269,15 @@ export default function ChatWindow() {
       }
     }
 
-    if (session.id) {
-      connect();
-    }
+    connect();
     
-    return () => wsRef.current?.close();
-  }, [session.id, connectionAttempts]);
+    return () => {
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
+      }
+      wsRef.current?.close();
+    };
+  }, [session.id, isClient]);
 
   const sendMessage = async (text: string) => {
     try {
