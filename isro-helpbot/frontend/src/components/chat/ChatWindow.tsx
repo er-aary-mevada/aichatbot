@@ -32,7 +32,7 @@ const ErrorFallback: React.FC<FallbackProps> = ({ error, resetErrorBoundary }) =
 
 export default function ChatWindow() {
   const [session, setSession] = useState<Session>({
-    id: generateSessionId(),
+    id: '',
     context: {},
     lastActive: new Date()
   });
@@ -50,6 +50,7 @@ export default function ChatWindow() {
   const [error, setError] = useState<string | null>(null);
   const [connectionAttempts, setConnectionAttempts] = useState(0);
   const [offlineMode, setOfflineMode] = useState(false);
+  const [isClient, setIsClient] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const MAX_RECONNECT_ATTEMPTS = 3;
 
@@ -57,6 +58,11 @@ export default function ChatWindow() {
   function generateSessionId(): string {
     return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
+
+  // Client-side initialization
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   // Enhanced AI response generation for offline mode
   function generateAIResponse(userMessage: string, sessionContext: Record<string, any>): Message {
@@ -112,6 +118,8 @@ export default function ChatWindow() {
 
   // Load session and message history from localStorage
   useEffect(() => {
+    if (!isClient) return;
+    
     const savedSession = localStorage.getItem('mosdac_chat_session');
     const savedMessages = localStorage.getItem('mosdac_chat_messages');
     
@@ -120,6 +128,13 @@ export default function ChatWindow() {
       setSession({
         ...parsed,
         lastActive: new Date(parsed.lastActive)
+      });
+    } else {
+      // Generate new session ID only on client
+      setSession({
+        id: generateSessionId(),
+        context: {},
+        lastActive: new Date()
       });
     }
     
@@ -138,7 +153,7 @@ export default function ChatWindow() {
         timestamp: new Date()
       }]);
     }
-  }, []);
+  }, [isClient]);
 
   // Save session to localStorage
   useEffect(() => {
@@ -317,7 +332,8 @@ export default function ChatWindow() {
           alignItems: 'center'
         }}>
           <Typography variant="body2">
-            {offlineMode ? '🔒 Offline Mode' : '🌐 Connected'} • Session: {session.id.slice(-8)}
+            {offlineMode ? '🔒 Offline Mode' : '🌐 Connected'}
+            {isClient && session.id ? ` • Session: ${session.id.slice(-8)}` : ''}
           </Typography>
           <Button 
             size="small" 
